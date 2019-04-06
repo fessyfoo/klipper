@@ -9,7 +9,7 @@ import probe
 class QuadGantryLevel:
     def __init__(self, config):
         self.printer = config.get_printer()
-        self.max_adjust = config.getfloat("max_adjust", 4)
+        self.max_adjust = config.getfloat("max_adjust", 4, above=0)
         self.horizontal_move_z = config.getfloat("horizontal_move_z", 5.0)
         self.default_retries = config.getint("retries", 0)
         self.default_retry_tolerance = config.getfloat("retry_tolerance", 0)
