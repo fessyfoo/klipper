@@ -22,6 +22,10 @@ class ZTilt:
                 config.get_name()))
         if len(z_positions) < 2:
             raise config.error("z_tilt requires at least two z_positions")
+
+        self.default_retries = config.getint("retries", 0)
+        self.default_retry_tolerance = config.getfloat("retry_tolerance", 0)
+
         self.probe_helper = probe.ProbePointsHelper(config, self.probe_finalize)
         self.z_steppers = []
         # Register Z_TILT_ADJUST command
@@ -39,6 +43,14 @@ class ZTilt:
         self.z_steppers = z_steppers
     cmd_Z_TILT_ADJUST_help = "Adjust the Z tilt"
     def cmd_Z_TILT_ADJUST(self, params):
+        self.retries = self.gcode.get_int(
+            'RETRIES', params, default=self.default_retries,
+            minval=0, maxval=30)
+        self.retry_tolerance = self.gcode.get_float(
+            'RETRY_TOLERANCE', params, default=self.default_retry_tolerance,
+            minval=0, maxval=1.0)
+        self.params = params
+        self.previous_delta = None
         self.probe_helper.start_probe(params)
     def probe_finalize(self, offsets, positions):
         # Setup for coordinate descent analysis
@@ -70,6 +82,24 @@ class ZTilt:
             for s in self.z_steppers:
                 s.set_ignore_move(False)
             raise
+
+        z_positions = [ p[2] for p in positions]
+        delta = max(z_positions) - min(z_positions)
+
+        if self.previous_delta and delta > self.previous_delta + 0.0000001:
+            self.gcode.respond_error(
+                  "Probe points delta of %0.6f is worse than previous %0.6f " %
+                  (delta, self.previous_delta))
+
+        self.previous_delta = delta
+
+        if self.retries > 0 and delta > self.retry_tolerance:
+            self.gcode.respond_info(
+                "retries %d delta: %0.6f retry_tolerance: %0.6f" %
+                (self.retries, delta, self.retry_tolerance))
+            self.retries -= 1
+            self.probe_helper.start_probe(self.params)
+
     def adjust_steppers(self, x_adjust, y_adjust, z_adjust):
         toolhead = self.printer.lookup_object('toolhead')
         curpos = toolhead.get_position()
