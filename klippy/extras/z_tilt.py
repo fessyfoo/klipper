@@ -50,7 +50,7 @@ class ZTilt:
             'RETRY_TOLERANCE', params, default=self.default_retry_tolerance,
             minval=0, maxval=1.0)
         self.params = params
-        self.previous_delta = None
+        self.previous_largest_adj = None
         self.probe_helper.start_probe(params)
     def probe_finalize(self, offsets, positions):
         # Setup for coordinate descent analysis
@@ -75,42 +75,43 @@ class ZTilt:
         y_adjust = new_params['y_adjust']
         z_adjust = (new_params['z_adjust'] - z_offset
                     - x_adjust * offsets[0] - y_adjust * offsets[1])
+        offsets = [ -(x*x_adjust + y*y_adjust) for x,y in self.z_positions]
+
         try:
-            self.adjust_steppers(x_adjust, y_adjust, z_adjust)
+            self.adjust_steppers(offsets, z_adjust)
         except:
             logging.exception("z_tilt adjust_steppers")
             for s in self.z_steppers:
                 s.set_ignore_move(False)
             raise
 
-        z_positions = [ p[2] for p in positions]
-        delta = max(z_positions) - min(z_positions)
+        largest_adj = max([abs(o) for o in offsets])
 
-        if self.previous_delta and delta > self.previous_delta + 0.0000001:
+        if self.previous_largest_adj and \
+            largest_adj > self.previous_largest_adj + 0.0000001:
+                self.gcode.respond_info(
+                    "WARNING: Largest adjustment of " +
+                    "%0.6f is worse than previous %0.6f" %
+                        (largest_adj, self.previous_largest_adj))
+
+        self.previous_largest_adj = largest_adj
+
+        if self.retries > 0 and largest_adj > self.retry_tolerance:
             self.gcode.respond_info(
-                "WARNING: Probe points delta of " +
-                "%0.6f is worse than previous %0.6f " %
-                    (delta, self.previous_delta))
-
-        self.previous_delta = delta
-
-        if self.retries > 0 and delta > self.retry_tolerance:
-            self.gcode.respond_info(
-                "retries %d delta: %0.6f retry_tolerance: %0.6f" %
-                (self.retries, delta, self.retry_tolerance))
+                "retries %d largest adjustment: %0.6f retry_tolerance: %0.6f" %
+                (self.retries, largest_adj, self.retry_tolerance))
             self.retries -= 1
             self.probe_helper.start_probe(self.params)
 
-    def adjust_steppers(self, x_adjust, y_adjust, z_adjust):
+    def adjust_steppers(self, offsets, z_adjust):
         toolhead = self.printer.lookup_object('toolhead')
         curpos = toolhead.get_position()
         speed = self.probe_helper.get_lift_speed()
         # Find each stepper adjustment and disable all stepper movements
-        positions = []
-        for s, (x, y) in zip(self.z_steppers, self.z_positions):
+        for s in self.z_steppers:
             s.set_ignore_move(True)
-            stepper_offset = -(x*x_adjust + y*y_adjust)
-            positions.append((stepper_offset, s))
+        positions = zip(offsets, self.z_steppers)
+
         # Report on movements
         stepstrs = ["%s = %.6f" % (s.get_name(), so) for so, s in positions]
         msg = "Making the following Z adjustments:\n%s\nz_adjust = %.6f" % (
