@@ -50,7 +50,7 @@ class QuadGantryLevel:
             'RETRY_TOLERANCE', params, default=self.default_retry_tolerance,
             minval=0, maxval=1.0)
         self.params = params
-        self.previous_delta = None
+        self.previous_largest_adj = None
         self.probe_helper.start_probe(params)
     def probe_finalize(self, offsets, positions):
         # Mirror our perspective so the adjustments make sense
@@ -99,21 +99,21 @@ class QuadGantryLevel:
                 s.set_ignore_move(False)
             raise
 
-        delta = max(z_positions) - min(z_positions)
+        largest_adj = max([ abs(z) for z in z_adjust])
+        if self.previous_largest_adj and \
+            largest_adj > self.previous_largest_adj + 0.0000001:
+                self.gcode.respond_info(
+                    "WARNING: largest adjustment of" +
+                    "%0.6f is worse than previous %0.6f " %
+                        (largest_adj, self.previous_largest_adj) +
+                    "Possibly Z motor numbering is wrong")
 
-        if self.previous_delta and delta > self.previous_delta + 0.0000001:
+        self.previous_largest_adj = largest_adj
+
+        if self.retries > 0 and largest_adj > self.retry_tolerance:
             self.gcode.respond_info(
-                "WARNING: Probe points delta of " +
-                "%0.6f is worse than previous %0.6f " %
-                    (delta, self.previous_delta) +
-                "Possibly Z motor numbering is wrong")
-
-        self.previous_delta = delta
-
-        if self.retries > 0 and delta > self.retry_tolerance:
-            self.gcode.respond_info(
-                "retries %d delta: %0.6f retry_tolerance: %0.6f" %
-                (self.retries, delta, self.retry_tolerance))
+                "retries %d largest adjustment: %0.6f retry_tolerance: %0.6f" %
+                (self.retries, largest_adj, self.retry_tolerance))
             self.retries -= 1
             self.probe_helper.start_probe(self.params)
 
