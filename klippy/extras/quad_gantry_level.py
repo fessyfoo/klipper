@@ -114,10 +114,11 @@ class QuadGantryLevel:
         delta = max(z_positions) - min(z_positions)
 
         if self.previous_delta and delta > self.previous_delta + 0.0000001:
-            self.gcode.respond_error(
-                  "Probe points delta of %0.6f is worse than previous %0.6f " %
-                  (delta, self.previous_delta) +
-                  "Possibly Z motor numbering is wrong")
+            self.gcode.respond_info(
+                "WARNING: Probe points delta of " +
+                "%0.6f is worse than previous %0.6f " %
+                    (delta, self.previous_delta) +
+                "Possibly Z motor numbering is wrong")
 
         self.previous_delta = delta
 
