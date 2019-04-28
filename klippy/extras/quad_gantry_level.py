@@ -103,7 +103,7 @@ class QuadGantryLevel:
         if self.previous_largest_adj and \
             largest_adj > self.previous_largest_adj + 0.0000001:
                 self.gcode.respond_info(
-                    "WARNING: largest adjustment of" +
+                    "WARNING: largest adjustment of " +
                     "%0.6f is worse than previous %0.6f " %
                         (largest_adj, self.previous_largest_adj) +
                     "Possibly Z motor numbering is wrong")
