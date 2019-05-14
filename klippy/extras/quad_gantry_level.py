@@ -204,14 +204,14 @@ class RetryHelper:
                 (value, self.previous) + self.error_msg_extra)
             return
 
-        if self.good(value):
-            return
-
         self.cnt += 1
         self.gcode.respond_info(
             "Try: %d/%d " % (self.cnt, self.retries_total + 1) +
             "%s: " % (self.value_label) +
             "%0.6f tolerance: %0.6f" % (value, self.retry_tolerance))
+
+        if self.good(value):
+            return
 
         if self.retries_remaining > 0:
             self.retries_remaining -= 1
