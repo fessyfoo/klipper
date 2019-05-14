@@ -8,11 +8,10 @@ import probe
 
 class QuadGantryLevel:
     def __init__(self, config):
+        self.config  = config
         self.printer = config.get_printer()
         self.max_adjust = config.getfloat("max_adjust", 4, above=0)
         self.horizontal_move_z = config.getfloat("horizontal_move_z", 5.0)
-        self.default_retries = config.getint("retries", 0)
-        self.default_retry_tolerance = config.getfloat("retry_tolerance", 0)
         self.printer.register_event_handler("klippy:connect",
                                             self.handle_connect)
         self.probe_helper = probe.ProbePointsHelper(config, self.probe_finalize)
@@ -44,15 +43,15 @@ class QuadGantryLevel:
     cmd_QUAD_GANTRY_LEVEL_help = (
         "Conform a moving, twistable gantry to the shape of a stationary bed")
     def cmd_QUAD_GANTRY_LEVEL(self, params):
-        self.retries = self.gcode.get_int(
-            'RETRIES', params, default=self.default_retries,
-            minval=0, maxval=30)
-        self.retry_tolerance = self.gcode.get_float(
-            'RETRY_TOLERANCE', params, default=self.default_retry_tolerance,
-            minval=0, maxval=1.0)
-        self.params = params
-        self.previous_largest_adj = None
-        self.probe_helper.start_probe(params)
+
+        self.retries = RetryHelper(
+            self.config,
+            retry = lambda: self.probe_helper.start_probe(params))
+
+        self.retries.error_msg_extra = "Possibly Z motor numbering is wrong"
+
+        self.retries.start()
+
     def probe_finalize(self, offsets, positions):
         # Mirror our perspective so the adjustments make sense
         # from the perspective of the gantry
@@ -112,22 +111,7 @@ class QuadGantryLevel:
             raise
 
         largest_adj = max([ abs(z) for z in z_adjust])
-        if self.previous_largest_adj and \
-            largest_adj > self.previous_largest_adj + 0.0000001:
-                self.gcode.respond_info(
-                    "WARNING: largest adjustment of " +
-                    "%0.6f is worse than previous %0.6f " %
-                        (largest_adj, self.previous_largest_adj) +
-                    "Possibly Z motor numbering is wrong")
-
-        self.previous_largest_adj = largest_adj
-
-        if self.retries > 0 and largest_adj > self.retry_tolerance:
-            self.gcode.respond_info(
-                "retries %d largest adjustment: %0.6f retry_tolerance: %0.6f" %
-                (self.retries, largest_adj, self.retry_tolerance))
-            self.retries -= 1
-            self.probe_helper.start_probe(self.params)
+        self.retries.check(largest_adjust)
 
 
     def linefit(self,p1,p2):
@@ -162,6 +146,78 @@ class QuadGantryLevel:
         for s in self.z_steppers:
             s.set_ignore_move(False)
         self.gcode.reset_last_position()
+
+class RetryHelper:
+
+    value_label     = "value"
+    error_msg_extra = ""
+
+    def __init__(config, retry):
+        self.retry_function     = retry
+
+        default_retries         = config.getint("retries", 0)
+        default_retry_tolerance = config.getfloat("retry_tolerance", 0)
+
+        retries = self.gcode.get_int(
+            'RETRIES', 
+            params,
+            default=config.getint("retries", 0),
+            minval=0,
+            maxval=30)
+
+        tolerance = self.gcode.get_float(
+            'RETRY_TOLERANCE', 
+            params, 
+            default=config.getfloat("retry_tolerance", 0),
+            minval=0, 
+            maxval=1.0)
+
+        self.retry_tolerance   = tolerance
+        self.retries_remaining = retries
+        self.enabled           = retries > 0
+        printer                = config.get_printer()
+        self.gcode             = printer.lookup_object('gcode')
+
+
+    def retry():
+        self.retry_function()
+
+    def start():
+        retry()
+
+    def error(value):
+        if self.previous and value > self.previous + 0.0000001:
+            return True
+
+        self.previous = value
+        return False
+
+    def good(value):
+        return value <= self.retry_tolerance
+
+    def check(value):
+        if not self.enabled:
+            return
+
+        if error(value):
+            self.gcode.respond_error(
+                "WARNING: %s of " % (self.value_label) +
+                "%0.6f is worse than previous %0.6f " %
+                (value, self.previous) + error_msg_extra)
+            return
+
+        if good(value):
+            return
+
+        if self.retries_remaining > 0:
+            self.gcode.respond_info(
+                "retries %d %s: " % ( self.retries, self.value_label) +
+                "%0.6f tolerance: %0.6f" % (value, self.retry_tolerance))
+            self.retries_remaining -= 1
+            self.retry()
+        else:
+            self.gcode.respond_error("Retries failed to converge target value")
+
 
 def load_config(config):
     return QuadGantryLevel(config)
