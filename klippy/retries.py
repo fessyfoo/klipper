@@ -85,11 +85,11 @@ class RetryRun(object):
                 "%s %s" % (history, self.error_msg_extra))
             return
 
-        self.cnt += 1
         self.gcode.respond_info(
-            "Try: %d/%d " % (self.cnt, self.retries_total + 1) +
+            "Retries: %d/%d " % (self.cnt, self.retries_total) +
             "%s: " % (self.value_label) +
             "%0.6f tolerance: %0.6f" % (value, self.retry_tolerance))
+        self.cnt += 1
 
         if self.good(value):
             return
