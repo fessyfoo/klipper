@@ -34,7 +34,7 @@ class RetryHelper:
         return retry_run
 
 
-class RetryRun:
+class RetryRun(object):
 
     def __init__(self, retry_function, retries, tolerance, gcode):
         self.gcode             = gcode
@@ -45,6 +45,8 @@ class RetryRun:
         self.cnt               = 0
         self.retry_function    = retry_function
         self.previous          = None
+        self.errors            = 0
+        self.history           = []
 
     def retry(self):
         self.retry_function()
@@ -52,12 +54,22 @@ class RetryRun:
     def start(self):
         self.retry()
 
-    def error(self,value):
-        if self.previous and value > self.previous + 0.0000001:
-            return True
+    @property
+    def errors(self):
+        return self.__errors
+    @errors.setter
+    def errors(self,errors):
+        self.__errors = 0 if errors < 0 else errors
 
+    def check_for_error(self,value):
+        if self.previous and value > self.previous + 0.0000001:
+            self.errors += 1
+        else:
+            self.errors -= 1
+
+        self.history.append(value)
         self.previous = value
-        return False
+        return self.errors > 1
 
     def good(self,value):
         return value <= self.retry_tolerance
@@ -66,11 +78,11 @@ class RetryRun:
         if not self.enabled:
             return
 
-        if self.error(value):
+        if self.check_for_error(value):
+            history = [ "%0.6f" % v for v in self.history ]
             self.gcode.respond_error(
-                "Error: %s of " % (self.value_label) +
-                "%0.6f is worse than previous %0.6f " % (value, self.previous) + 
-                self.error_msg_extra)
+                "Retries aborting: %s is increasing. " % (self.value_label) +
+                "%s %s" % (history, self.error_msg_extra))
             return
 
         self.cnt += 1
