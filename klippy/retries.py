@@ -1,23 +1,19 @@
 
 class RetryHelper:
 
-    value_label     = "value"
-    error_msg_extra = ""
-
     def __init__(self, config):
+
+        self.value_label     = "value"
+        self.error_msg_extra = ""
 
         self.default_retries         = config.getint("retries", 0)
         self.default_retry_tolerance = config.getfloat("retry_tolerance", 0)
 
-        printer    = config.get_printer()
-        self.gcode = printer.lookup_object('gcode')
+        self.gcode = config.get_printer().lookup_object('gcode')
 
-    def retry(self):
-        self.retry_function()
-
-    def start(self, params, retry_function):
+    def retry(self, params, retry_function): 
         retries = self.gcode.get_int(
-            'RETRIES', 
+            'RETRIES',
             params,
             default=self.default_retries,
             minval=0,
@@ -30,6 +26,18 @@ class RetryHelper:
             minval=0, 
             maxval=1.0)
 
+        retry_run = RetryRun(retry_function, retries, tolerance, self.gcode)
+
+        retry_run.value_label     = self.value_label
+        retry_run.error_msg_extra = self.error_msg_extra
+
+        return retry_run
+
+
+class RetryRun:
+
+    def __init__(self, retry_function, retries, tolerance, gcode):
+        self.gcode             = gcode
         self.retry_tolerance   = tolerance
         self.retries_remaining = retries
         self.retries_total     = retries
@@ -37,6 +45,11 @@ class RetryHelper:
         self.cnt               = 0
         self.retry_function    = retry_function
         self.previous          = None
+
+    def retry(self):
+        self.retry_function()
+
+    def start(self):
         self.retry()
 
     def error(self,value):
