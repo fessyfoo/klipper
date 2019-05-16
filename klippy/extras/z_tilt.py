@@ -22,6 +22,10 @@ class ZTilt:
                 config.get_name()))
         if len(z_positions) < 2:
             raise config.error("z_tilt requires at least two z_positions")
+
+        self.default_retries = config.getint("retries", 0)
+        self.default_retry_tolerance = config.getfloat("retry_tolerance", 0)
+
         self.probe_helper = probe.ProbePointsHelper(config, self.probe_finalize)
         self.z_steppers = []
         # Register Z_TILT_ADJUST command
@@ -39,6 +43,14 @@ class ZTilt:
         self.z_steppers = z_steppers
     cmd_Z_TILT_ADJUST_help = "Adjust the Z tilt"
     def cmd_Z_TILT_ADJUST(self, params):
+        self.retries = self.gcode.get_int(
+            'RETRIES', params, default=self.default_retries,
+            minval=0, maxval=30)
+        self.retry_tolerance = self.gcode.get_float(
+            'RETRY_TOLERANCE', params, default=self.default_retry_tolerance,
+            minval=0, maxval=1.0)
+        self.params = params
+        self.previous_largest_adj = None
         self.probe_helper.start_probe(params)
     def probe_finalize(self, offsets, positions):
         # Setup for coordinate descent analysis
@@ -63,23 +75,43 @@ class ZTilt:
         y_adjust = new_params['y_adjust']
         z_adjust = (new_params['z_adjust'] - z_offset
                     - x_adjust * offsets[0] - y_adjust * offsets[1])
+        offsets = [ -(x*x_adjust + y*y_adjust) for x,y in self.z_positions]
+
         try:
-            self.adjust_steppers(x_adjust, y_adjust, z_adjust)
+            self.adjust_steppers(offsets, z_adjust)
         except:
             logging.exception("z_tilt adjust_steppers")
             for s in self.z_steppers:
                 s.set_ignore_move(False)
             raise
-    def adjust_steppers(self, x_adjust, y_adjust, z_adjust):
+
+        largest_adj = max([abs(o) for o in offsets])
+
+        if self.previous_largest_adj and \
+            largest_adj > self.previous_largest_adj + 0.0000001:
+                self.gcode.respond_info(
+                    "WARNING: Largest adjustment of " +
+                    "%0.6f is worse than previous %0.6f" %
+                        (largest_adj, self.previous_largest_adj))
+
+        self.previous_largest_adj = largest_adj
+
+        if self.retries > 0 and largest_adj > self.retry_tolerance:
+            self.gcode.respond_info(
+                "retries %d largest adjustment: %0.6f retry_tolerance: %0.6f" %
+                (self.retries, largest_adj, self.retry_tolerance))
+            self.retries -= 1
+            self.probe_helper.start_probe(self.params)
+
+    def adjust_steppers(self, offsets, z_adjust):
         toolhead = self.printer.lookup_object('toolhead')
         curpos = toolhead.get_position()
         speed = self.probe_helper.get_lift_speed()
         # Find each stepper adjustment and disable all stepper movements
-        positions = []
-        for s, (x, y) in zip(self.z_steppers, self.z_positions):
+        for s in self.z_steppers:
             s.set_ignore_move(True)
-            stepper_offset = -(x*x_adjust + y*y_adjust)
-            positions.append((stepper_offset, s))
+        positions = zip(offsets, self.z_steppers)
+
         # Report on movements
         stepstrs = ["%s = %.6f" % (s.get_name(), so) for so, s in positions]
         msg = "Making the following Z adjustments:\n%s\nz_adjust = %.6f" % (
