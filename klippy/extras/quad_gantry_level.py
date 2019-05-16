@@ -15,7 +15,7 @@ class QuadGantryLevel:
         self.retry_helper = RetryHelper(config)
         self.retry_helper.error_msg_extra = \
             "Possibly Z motor numbering is wrong"
-        self.retry_helper.value_label = "Largest z_adjust"
+        self.retry_helper.value_label = "Probed points range"
 
         self.max_adjust = config.getfloat("max_adjust", 4, above=0)
         self.horizontal_move_z = config.getfloat("horizontal_move_z", 5.0)
@@ -113,8 +113,7 @@ class QuadGantryLevel:
                 s.set_ignore_move(False)
             raise
 
-        largest_adj = max([ abs(z) for z in z_adjust])
-        self.retries.check(largest_adj)
+        self.retries.check(max(z_positions) - min(z_positions))
 
 
     def linefit(self,p1,p2):
