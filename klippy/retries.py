@@ -11,7 +11,7 @@ class RetryHelper:
 
         self.gcode = config.get_printer().lookup_object('gcode')
 
-    def retry(self, params, retry_function): 
+    def retry(self, params, retry_function):
         retries = self.gcode.get_int(
             'RETRIES',
             params,
@@ -20,10 +20,10 @@ class RetryHelper:
             maxval=30)
 
         tolerance = self.gcode.get_float(
-            'RETRY_TOLERANCE', 
-            params, 
+            'RETRY_TOLERANCE',
+            params,
             default=self.default_retry_tolerance,
-            minval=0, 
+            minval=0,
             maxval=1.0)
 
         retry_run = RetryRun(retry_function, retries, tolerance, self.gcode)
