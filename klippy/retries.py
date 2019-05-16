@@ -79,7 +79,7 @@ class RetryRun(object):
             return
 
         if self.check_for_error(value):
-            history = [ "%0.6f" % v for v in self.history ]
+            history = [ round(v,6) for v in self.history ]
             self.gcode.respond_error(
                 "Retries aborting: %s is increasing. " % (self.value_label) +
                 "%s %s" % (history, self.error_msg_extra))
