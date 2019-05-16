@@ -5,14 +5,20 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import logging
 import probe
+from retries import RetryHelper
+
 
 class QuadGantryLevel:
     def __init__(self, config):
         self.printer = config.get_printer()
+
+        self.retry_helper = RetryHelper(config)
+        self.retry_helper.error_msg_extra = \
+            "Possibly Z motor numbering is wrong"
+        self.retry_helper.value_label = "Probed points range"
+
         self.max_adjust = config.getfloat("max_adjust", 4, above=0)
         self.horizontal_move_z = config.getfloat("horizontal_move_z", 5.0)
-        self.default_retries = config.getint("retries", 0)
-        self.default_retry_tolerance = config.getfloat("retry_tolerance", 0)
         self.printer.register_event_handler("klippy:connect",
                                             self.handle_connect)
         self.probe_helper = probe.ProbePointsHelper(config, self.probe_finalize)
@@ -44,15 +50,11 @@ class QuadGantryLevel:
     cmd_QUAD_GANTRY_LEVEL_help = (
         "Conform a moving, twistable gantry to the shape of a stationary bed")
     def cmd_QUAD_GANTRY_LEVEL(self, params):
-        self.retries = self.gcode.get_int(
-            'RETRIES', params, default=self.default_retries,
-            minval=0, maxval=30)
-        self.retry_tolerance = self.gcode.get_float(
-            'RETRY_TOLERANCE', params, default=self.default_retry_tolerance,
-            minval=0, maxval=1.0)
-        self.params = params
-        self.previous_largest_adj = None
-        self.probe_helper.start_probe(params)
+        self.retries = self.retry_helper.retry(
+            params,
+            lambda: self.probe_helper.start_probe(params))
+        self.retries.start()
+
     def probe_finalize(self, offsets, positions):
         # Mirror our perspective so the adjustments make sense
         # from the perspective of the gantry
@@ -111,23 +113,7 @@ class QuadGantryLevel:
                 s.set_ignore_move(False)
             raise
 
-        largest_adj = max([ abs(z) for z in z_adjust])
-        if self.previous_largest_adj and \
-            largest_adj > self.previous_largest_adj + 0.0000001:
-                self.gcode.respond_info(
-                    "WARNING: largest adjustment of " +
-                    "%0.6f is worse than previous %0.6f " %
-                        (largest_adj, self.previous_largest_adj) +
-                    "Possibly Z motor numbering is wrong")
-
-        self.previous_largest_adj = largest_adj
-
-        if self.retries > 0 and largest_adj > self.retry_tolerance:
-            self.gcode.respond_info(
-                "retries %d largest adjustment: %0.6f retry_tolerance: %0.6f" %
-                (self.retries, largest_adj, self.retry_tolerance))
-            self.retries -= 1
-            self.probe_helper.start_probe(self.params)
+        self.retries.check(max(z_positions) - min(z_positions))
 
 
     def linefit(self,p1,p2):
