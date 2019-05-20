@@ -5,10 +5,18 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import logging
 import probe
+from retries import RetryHelper
+
 
 class QuadGantryLevel:
     def __init__(self, config):
         self.printer = config.get_printer()
+
+        self.retry_helper = RetryHelper(config)
+        self.retry_helper.error_msg_extra = \
+            "Possibly Z motor numbering is wrong"
+        self.retry_helper.value_label = "Probed points range"
+
         self.max_adjust = config.getfloat("max_adjust", 4, above=0)
         self.horizontal_move_z = config.getfloat("horizontal_move_z", 5.0)
         self.printer.register_event_handler("klippy:connect",
@@ -45,7 +53,11 @@ class QuadGantryLevel:
     cmd_QUAD_GANTRY_LEVEL_help = (
         "Conform a moving, twistable gantry to the shape of a stationary bed")
     def cmd_QUAD_GANTRY_LEVEL(self, params):
-        self.probe_helper.start_probe(params)
+        self.retries = self.retry_helper.retry(
+            params,
+            lambda: self.probe_helper.start_probe(params))
+        self.retries.start()
+
     def probe_finalize(self, offsets, positions):
         # Mirror our perspective so the adjustments make sense
         # from the perspective of the gantry
@@ -103,6 +115,10 @@ class QuadGantryLevel:
             for s in self.z_steppers:
                 s.set_ignore_move(False)
             raise
+
+        self.retries.check(max(z_positions) - min(z_positions))
+
+
     def linefit(self,p1,p2):
         if p1[1] == p2[1]:
             # Straight line
