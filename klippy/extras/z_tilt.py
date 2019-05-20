@@ -5,6 +5,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import logging
 import probe, mathutil
+from retries import RetryHelper
 
 class ZTilt:
     def __init__(self, config):
@@ -22,6 +23,10 @@ class ZTilt:
                 config.get_name()))
         if len(z_positions) < 2:
             raise config.error("z_tilt requires at least two z_positions")
+
+        self.retry_helper = RetryHelper(config)
+        self.retry_helper.value_label = "Probed points range"
+
         self.probe_helper = probe.ProbePointsHelper(config, self.probe_finalize)
         self.probe_helper.minimum_points(2)
         self.z_steppers = []
@@ -40,7 +45,10 @@ class ZTilt:
         self.z_steppers = z_steppers
     cmd_Z_TILT_ADJUST_help = "Adjust the Z tilt"
     def cmd_Z_TILT_ADJUST(self, params):
-        self.probe_helper.start_probe(params)
+        self.retries = self.retry_helper.retry(
+            params,
+            lambda: self.probe_helper.start_probe(params))
+        self.retries.start()
     def probe_finalize(self, offsets, positions):
         # Setup for coordinate descent analysis
         z_offset = offsets[2]
@@ -71,6 +79,11 @@ class ZTilt:
             for s in self.z_steppers:
                 s.set_ignore_move(False)
             raise
+
+        z_positions = [ p[2] for p in positions]
+        self.retries.check(max(z_positions) - min(z_positions))
+
+
     def adjust_steppers(self, x_adjust, y_adjust, z_adjust):
         toolhead = self.printer.lookup_object('toolhead')
         curpos = toolhead.get_position()
