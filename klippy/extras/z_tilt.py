@@ -5,7 +5,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import logging
 import probe, mathutil
-from retries import RetryHelper
+from quad_gantry_level import RetryHelper
 
 class ZTilt:
     def __init__(self, config):
