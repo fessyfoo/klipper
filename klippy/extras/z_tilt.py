@@ -28,6 +28,7 @@ class ZTilt:
         self.retry_helper.value_label = "Probed points range"
 
         self.probe_helper = probe.ProbePointsHelper(config, self.probe_finalize)
+        self.probe_helper.minimum_points(2)
         self.z_steppers = []
         # Register Z_TILT_ADJUST command
         self.gcode = self.printer.lookup_object('gcode')
