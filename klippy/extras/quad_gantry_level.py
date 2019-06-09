@@ -155,7 +155,7 @@ class QuadGantryLevel:
 # Retry Helper Class
 ######################################################################
 
-# this along with the following RetryRun class is originally designed to share
+# this along with the following RetryState class is originally designed to share
 # retry logic between QuadGantryLevel cmd_QUAD_GANTRY_LEVEL and ZTilt
 # cmd_Z_TILT_ADJUST
 
@@ -164,7 +164,7 @@ class QuadGantryLevel:
 #
 # RetryHelper retry() parses the retries and retry_tolerance params for the
 # calling gcode command and then instantiates, configures and returns the
-# RetryRun object to keep state involved with retrying and watching for errors.
+# RetryState object to keep state involved with retrying and watching for errors.
 
 class RetryHelper:
 
@@ -193,21 +193,21 @@ class RetryHelper:
             minval=0,
             maxval=1.0)
 
-        retry_run = RetryRun(retry_function, retries, tolerance, self.gcode)
+        state = RetryState(retry_function, retries, tolerance, self.gcode)
 
-        retry_run.value_label     = self.value_label
-        retry_run.error_msg_extra = self.error_msg_extra
+        state.value_label     = self.value_label
+        state.error_msg_extra = self.error_msg_extra
 
-        return retry_run
+        return state
 
 ######################################################################
-# RetryRun Class
+# RetryState Class
 ######################################################################
 
 # Instantiated by RetryHeper retry() method. Keeps state for retries of the
 # supplied retry_function.
 
-# retry_run.check() must be called with a value that is the result of the
+# .check() must be called with a value that is the result of the
 # current run.  if this value is larger than the tolerance retry the provided
 # retry_function again up to the configured number of retries.
 
@@ -215,7 +215,7 @@ class RetryHelper:
 
 # last it issues an error messgage if retries were configured but they don't
 # converge less than retry_tolerance in the specified number of retries
-class RetryRun(object):
+class RetryState(object):
 
     def __init__(self, retry_function, retries, tolerance, gcode):
         self.gcode             = gcode
