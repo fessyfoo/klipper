@@ -193,12 +193,13 @@ class RetryHelper:
             minval=0,
             maxval=1.0)
 
-        state = RetryState(retry_function, retries, tolerance, self.gcode)
-
-        state.value_label     = self.value_label
-        state.error_msg_extra = self.error_msg_extra
-
-        return state
+        return RetryState(
+            retry_function,
+            retries,
+            tolerance,
+            self.gcode,
+            self.error_msg_extra,
+            self.value_label)
 
 ######################################################################
 # RetryState Class
@@ -217,7 +218,9 @@ class RetryHelper:
 # converge less than retry_tolerance in the specified number of retries
 class RetryState(object):
 
-    def __init__(self, retry_function, retries, tolerance, gcode):
+    def __init__(self, retry_function, retries, tolerance, gcode,
+                 error_msg_extra, value_label):
+
         self.gcode             = gcode
         self.retry_tolerance   = tolerance
         self.retries_remaining = retries
@@ -228,6 +231,8 @@ class RetryState(object):
         self.previous          = None
         self.errors            = 0
         self.history           = []
+        self.error_msg_extra   = error_msg_extra
+        self.value_label       = value_label
 
     def start(self):
         self.retry_function()
