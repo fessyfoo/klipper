@@ -82,7 +82,7 @@ class ZTilt:
             raise
 
         z_positions = [ p[2] for p in positions]
-        self.retries.check(max(z_positions) - min(z_positions))
+        return self.retries.check(max(z_positions) - min(z_positions))
 
 
     def adjust_steppers(self, x_adjust, y_adjust, z_adjust):
