@@ -155,8 +155,8 @@ class QuadGantryLevel:
 # Retry Helper Class
 ######################################################################
 
-# this along with the following RetryState class is originally designed to share
-# retry logic between QuadGantryLevel cmd_QUAD_GANTRY_LEVEL and ZTilt
+# this along with the following RetryState class is originally designed to
+# share retry logic between QuadGantryLevel cmd_QUAD_GANTRY_LEVEL and ZTilt
 # cmd_Z_TILT_ADJUST
 
 # RetryHelper __init__() gathers default options retries and retry_tolerance
@@ -164,7 +164,8 @@ class QuadGantryLevel:
 #
 # RetryHelper retry() parses the retries and retry_tolerance params for the
 # calling gcode command and then instantiates, configures and returns the
-# RetryState object to keep state involved with retrying and watching for errors.
+# RetryState object to keep state involved with retrying and watching for
+# errors.
 
 class RetryHelper:
 
