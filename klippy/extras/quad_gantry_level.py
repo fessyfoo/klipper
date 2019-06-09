@@ -117,7 +117,6 @@ class QuadGantryLevel:
 
         return self.retries.check(max(z_positions) - min(z_positions))
 
-
     def linefit(self,p1,p2):
         if p1[1] == p2[1]:
             # Straight line
