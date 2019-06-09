@@ -84,7 +84,6 @@ class ZTilt:
         z_positions = [ p[2] for p in positions]
         return self.retries.check(max(z_positions) - min(z_positions))
 
-
     def adjust_steppers(self, x_adjust, y_adjust, z_adjust):
         toolhead = self.printer.lookup_object('toolhead')
         curpos = toolhead.get_position()
