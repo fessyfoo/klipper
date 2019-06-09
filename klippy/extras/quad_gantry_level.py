@@ -11,10 +11,10 @@ class QuadGantryLevel:
     def __init__(self, config):
         self.printer = config.get_printer()
 
-        self.retry_helper = RetryHelper(config)
-        self.retry_helper.error_msg_extra = \
-            "Possibly Z motor numbering is wrong"
-        self.retry_helper.value_label = "Probed points range"
+        self.retry_helper = RetryHelper(
+            config = config,
+            value_label = "Probed points range",
+            error_msg_extra = "Possibly Z motor numbering is wrong")
 
         self.max_adjust = config.getfloat("max_adjust", 4, above=0)
         self.horizontal_move_z = config.getfloat("horizontal_move_z", 5.0)
@@ -168,10 +168,10 @@ class QuadGantryLevel:
 
 class RetryHelper:
 
-    def __init__(self, config):
+    def __init__(self, config, error_msg_extra = "", value_label = "value"):
 
-        self.value_label     = "value"
-        self.error_msg_extra = ""
+        self.value_label     = value_label
+        self.error_msg_extra = error_msg_extra
 
         self.default_retries         = config.getint("retries", 0)
         self.default_retry_tolerance = config.getfloat("retry_tolerance", 0)

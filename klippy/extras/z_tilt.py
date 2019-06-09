@@ -24,8 +24,9 @@ class ZTilt:
         if len(z_positions) < 2:
             raise config.error("z_tilt requires at least two z_positions")
 
-        self.retry_helper = RetryHelper(config)
-        self.retry_helper.value_label = "Probed points range"
+        self.retry_helper = RetryHelper(
+            config = config,
+            value_label = "Probed points range")
 
         self.probe_helper = probe.ProbePointsHelper(config, self.probe_finalize)
         self.probe_helper.minimum_points(2)
