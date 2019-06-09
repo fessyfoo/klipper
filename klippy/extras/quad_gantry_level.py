@@ -115,7 +115,7 @@ class QuadGantryLevel:
                 s.set_ignore_move(False)
             raise
 
-        self.retries.check(max(z_positions) - min(z_positions))
+        return self.retries.check(max(z_positions) - min(z_positions))
 
 
     def linefit(self,p1,p2):
@@ -229,11 +229,8 @@ class RetryRun(object):
         self.errors            = 0
         self.history           = []
 
-    def retry(self):
-        self.retry_function()
-
     def start(self):
-        self.retry()
+        self.retry_function()
 
     @property
     def errors(self):
@@ -277,7 +274,7 @@ class RetryRun(object):
 
         if self.retries_remaining > 0:
             self.retries_remaining -= 1
-            self.retry()
+            return "retry"
         else:
             self.gcode.respond_error(
                 "Retries: %s failed to converge to tolerance" %
