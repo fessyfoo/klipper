@@ -208,12 +208,13 @@ class RetryHelper:
 # supplied retry_function.
 
 # .check() must be called with a value that is the result of the
-# current run.  if this value is larger than the tolerance retry the provided
-# retry_function again up to the configured number of retries.
+# current run.  If this value is larger than the tolerance and we
+# are below the configured number of retries return "retry"  to trigger
+# the probe support to retry.
 
-# it further watches for the value  getting worse consecutively and aborts
+# It further watches for the value  getting worse consecutively and aborts
 
-# last it issues an error messgage if retries were configured but they don't
+# Last it issues an error messgage if retries were configured but they don't
 # converge less than retry_tolerance in the specified number of retries
 class RetryState(object):
 
