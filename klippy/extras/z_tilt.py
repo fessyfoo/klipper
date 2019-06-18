@@ -87,10 +87,8 @@ class ZTilt:
                                     desc=self.cmd_Z_TILT_ADJUST_help)
     cmd_Z_TILT_ADJUST_help = "Adjust the Z tilt"
     def cmd_Z_TILT_ADJUST(self, params):
-        self.retries = self.retry_helper.retry(
-            params,
-            lambda: self.probe_helper.start_probe(params))
-        self.retries.start()
+        self.retries = self.retry_helper.retry(params)
+        self.probe_helper.start_probe(params)
     def probe_finalize(self, offsets, positions):
         # Setup for coordinate descent analysis
         z_offset = offsets[2]
@@ -151,7 +149,7 @@ class RetryHelper:
 
         self.gcode = config.get_printer().lookup_object('gcode')
 
-    def retry(self, params, retry_function):
+    def retry(self, params):
         retries = self.gcode.get_int(
             'RETRIES',
             params,
@@ -167,7 +165,6 @@ class RetryHelper:
             maxval=1.0)
 
         return RetryState(
-            retry_function,
             retries,
             tolerance,
             self.gcode,
@@ -178,13 +175,12 @@ class RetryHelper:
 # RetryState Class
 ######################################################################
 
-# Instantiated by RetryHeper retry() method. Keeps state for retries of the
-# supplied retry_function.
+# Instantiated by RetryHeper retry() method. Keeps state for retries
 
-# .check() must be called with a value that is the result of the
-# current run.  If this value is larger than the tolerance and we
-# are below the configured number of retries return "retry"  to trigger
-# the probe support to retry.
+# provides a .check() function that must be called with a value that is the
+# result of the current run. If this value is larger than the tolerance and we
+# are below the configured number of retries then return "retry" to trigger the
+# probe support for retry.
 
 # It further watches for the value  getting worse consecutively and aborts
 
@@ -192,8 +188,7 @@ class RetryHelper:
 # converge less than retry_tolerance in the specified number of retries
 class RetryState(object):
 
-    def __init__(self, retry_function, retries, tolerance, gcode,
-                 error_msg_extra, value_label):
+    def __init__(self, retries, tolerance, gcode, error_msg_extra, value_label):
 
         self.gcode             = gcode
         self.retry_tolerance   = tolerance
@@ -201,15 +196,11 @@ class RetryState(object):
         self.retries_total     = retries
         self.enabled           = retries > 0
         self.cnt               = 0
-        self.retry_function    = retry_function
         self.previous          = None
         self.errors            = 0
         self.history           = []
         self.error_msg_extra   = error_msg_extra
         self.value_label       = value_label
-
-    def start(self):
-        self.retry_function()
 
     @property
     def errors(self):

@@ -42,10 +42,8 @@ class QuadGantryLevel:
     cmd_QUAD_GANTRY_LEVEL_help = (
         "Conform a moving, twistable gantry to the shape of a stationary bed")
     def cmd_QUAD_GANTRY_LEVEL(self, params):
-        self.retries = self.retry_helper.retry(
-            params,
-            lambda: self.probe_helper.start_probe(params))
-        self.retries.start()
+        self.retries = self.retry_helper.retry(params)
+        self.probe_helper.start_probe(params)
 
     def probe_finalize(self, offsets, positions):
         # Mirror our perspective so the adjustments make sense
