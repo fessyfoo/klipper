@@ -10,10 +10,8 @@ class QuadGantryLevel:
     def __init__(self, config):
         self.printer = config.get_printer()
 
-        self.retry_helper = z_tilt.RetryHelper(
-            config = config,
-            value_label = "Probed points range",
-            error_msg_extra = "Possibly Z motor numbering is wrong")
+        self.retry_helper = z_tilt.RetryHelper(config,
+            "Possibly Z motor numbering is wrong")
 
         self.max_adjust = config.getfloat("max_adjust", 4, above=0)
         self.horizontal_move_z = config.getfloat("horizontal_move_z", 5.0)
@@ -42,7 +40,7 @@ class QuadGantryLevel:
     cmd_QUAD_GANTRY_LEVEL_help = (
         "Conform a moving, twistable gantry to the shape of a stationary bed")
     def cmd_QUAD_GANTRY_LEVEL(self, params):
-        self.retries = self.retry_helper.retry(params)
+        self.retry_helper.start(params)
         self.probe_helper.start_probe(params)
 
     def probe_finalize(self, offsets, positions):
@@ -98,7 +96,7 @@ class QuadGantryLevel:
         speed = self.probe_helper.get_lift_speed()
         self.z_helper.adjust_steppers(z_adjust, speed)
 
-        return self.retries.check(max(z_positions) - min(z_positions))
+        return self.retry_helper.check_retry(z_positions)
 
     def linefit(self,p1,p2):
         if p1[1] == p2[1]:

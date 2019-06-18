@@ -61,6 +61,49 @@ class ZAdjustHelper:
         toolhead.set_position(curpos)
         gcode.reset_last_position()
 
+class RetryHelper:
+    def __init__(self, config, error_msg_extra = ""):
+        self.gcode = config.get_printer().lookup_object('gcode')
+        self.default_max_retries = config.getint("retries", 0, minval=0)
+        self.default_retry_tolerance = \
+            config.getfloat("retry_tolerance", 0., above=0.)
+        self.value_label = "Probed points range"
+        self.error_msg_extra = error_msg_extra
+    def start(self, params):
+        self.max_retries = self.gcode.get_int('RETRIES', params,
+            default=self.default_max_retries, minval=0, maxval=30)
+        self.retry_tolerance = self.gcode.get_float('RETRY_TOLERANCE', params,
+            default=self.default_retry_tolerance, minval=0, maxval=1.0)
+        self.current_retry = 0
+        self.previous = None
+        self.increasing = 0
+    def check_increase(self,error):
+        if self.previous and error > self.previous + 0.0000001:
+            self.increasing += 1
+        elif self.increasing > 0:
+            self.increasing -= 1
+        self.previous = error
+        return self.increasing > 1
+    def check_retry(self,z_positions):
+        error = max(z_positions) - min(z_positions)
+        if self.check_increase(error):
+            self.gcode.respond_error(
+                "Retries aborting: %s is increasing. %s" % (
+                    self.value_label, self.error_msg_extra))
+            return
+        if self.max_retries > 0:
+            self.gcode.respond_info(
+                "Retries: %d/%d %s: %0.6f tolerance: %0.6f" % (
+                    self.current_retry, self.max_retries, self.value_label,
+                    error, self.retry_tolerance))
+        if error <= self.retry_tolerance:
+            return "done"
+        self.current_retry += 1
+        if self.current_retry > self.max_retries:
+            self.gcode.respond_error("Too many retries")
+            return
+        return "retry"
+
 class ZTilt:
     def __init__(self, config):
         self.printer = config.get_printer()
@@ -74,9 +117,7 @@ class ZTilt:
             raise config.error("Unable to parse z_positions in %s" % (
                 config.get_name()))
 
-        self.retry_helper = RetryHelper(
-            config = config,
-            value_label = "Probed points range")
+        self.retry_helper = RetryHelper(config)
 
         self.probe_helper = probe.ProbePointsHelper(config, self.probe_finalize)
         self.probe_helper.minimum_points(2)
@@ -87,7 +128,7 @@ class ZTilt:
                                     desc=self.cmd_Z_TILT_ADJUST_help)
     cmd_Z_TILT_ADJUST_help = "Adjust the Z tilt"
     def cmd_Z_TILT_ADJUST(self, params):
-        self.retries = self.retry_helper.retry(params)
+        self.retry_helper.start(params)
         self.probe_helper.start_probe(params)
     def probe_finalize(self, offsets, positions):
         # Setup for coordinate descent analysis
@@ -118,137 +159,7 @@ class ZTilt:
                        for x, y in self.z_positions]
         self.z_helper.adjust_steppers(adjustments, speed)
 
-        z_positions = [ p[2] for p in positions]
-        return self.retries.check(max(z_positions) - min(z_positions))
-
-######################################################################
-# Retry Helper Class
-######################################################################
-
-# this along with the following RetryState class is originally designed to
-# share retry logic between QuadGantryLevel cmd_QUAD_GANTRY_LEVEL and ZTilt
-# cmd_Z_TILT_ADJUST
-
-# RetryHelper __init__() gathers default options retries and retry_tolerance
-# from the passed in config object
-#
-# RetryHelper retry() parses the retries and retry_tolerance params for the
-# calling gcode command and then instantiates, configures and returns the
-# RetryState object to keep state involved with retrying and watching for
-# errors.
-
-class RetryHelper:
-
-    def __init__(self, config, error_msg_extra = "", value_label = "value"):
-
-        self.value_label     = value_label
-        self.error_msg_extra = error_msg_extra
-
-        self.default_retries         = config.getint("retries", 0)
-        self.default_retry_tolerance = config.getfloat("retry_tolerance", 0)
-
-        self.gcode = config.get_printer().lookup_object('gcode')
-
-    def retry(self, params):
-        retries = self.gcode.get_int(
-            'RETRIES',
-            params,
-            default=self.default_retries,
-            minval=0,
-            maxval=30)
-
-        tolerance = self.gcode.get_float(
-            'RETRY_TOLERANCE',
-            params,
-            default=self.default_retry_tolerance,
-            minval=0,
-            maxval=1.0)
-
-        return RetryState(
-            retries,
-            tolerance,
-            self.gcode,
-            self.error_msg_extra,
-            self.value_label)
-
-######################################################################
-# RetryState Class
-######################################################################
-
-# Instantiated by RetryHeper retry() method. Keeps state for retries
-
-# provides a .check() function that must be called with a value that is the
-# result of the current run. If this value is larger than the tolerance and we
-# are below the configured number of retries then return "retry" to trigger the
-# probe support for retry.
-
-# It further watches for the value  getting worse consecutively and aborts
-
-# Last it issues an error messgage if retries were configured but they don't
-# converge less than retry_tolerance in the specified number of retries
-class RetryState(object):
-
-    def __init__(self, retries, tolerance, gcode, error_msg_extra, value_label):
-
-        self.gcode             = gcode
-        self.retry_tolerance   = tolerance
-        self.retries_remaining = retries
-        self.retries_total     = retries
-        self.enabled           = retries > 0
-        self.cnt               = 0
-        self.previous          = None
-        self.errors            = 0
-        self.history           = []
-        self.error_msg_extra   = error_msg_extra
-        self.value_label       = value_label
-
-    @property
-    def errors(self):
-        return self.__errors
-    @errors.setter
-    def errors(self,errors):
-        self.__errors = 0 if errors < 0 else errors
-
-    def check_for_error(self,value):
-        if self.previous and value > self.previous + 0.0000001:
-            self.errors += 1
-        else:
-            self.errors -= 1
-
-        self.history.append(value)
-        self.previous = value
-        return self.errors > 1
-
-    def good(self,value):
-        return value <= self.retry_tolerance
-
-    def check(self,value):
-        if not self.enabled:
-            return
-
-        if self.check_for_error(value):
-            history = [ round(v,6) for v in self.history ]
-            self.gcode.respond_error(
-                "Retries aborting: %s is increasing. " % (self.value_label) +
-                "%s %s" % (history, self.error_msg_extra))
-            return
-
-        self.gcode.respond_info(
-            "Retries: %d/%d " % (self.cnt, self.retries_total) +
-            "%s: " % (self.value_label) +
-            "%0.6f tolerance: %0.6f" % (value, self.retry_tolerance))
-        self.cnt += 1
-
-        if self.good(value):
-            return
-
-        if self.retries_remaining > 0:
-            self.retries_remaining -= 1
-            return "retry"
-        else:
-            self.gcode.respond_error(
-                "Retries: %s failed to converge to tolerance" %
-                (self.value_label))
+        return self.retry_helper.check_retry([p[2] for p in positions])
 
 def load_config(config):
     return ZTilt(config)
