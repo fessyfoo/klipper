@@ -116,9 +116,7 @@ class ZTilt:
         except:
             raise config.error("Unable to parse z_positions in %s" % (
                 config.get_name()))
-
         self.retry_helper = RetryHelper(config)
-
         self.probe_helper = probe.ProbePointsHelper(config, self.probe_finalize)
         self.probe_helper.minimum_points(2)
         self.z_helper = ZAdjustHelper(config, len(self.z_positions))
@@ -154,11 +152,9 @@ class ZTilt:
         y_adjust = new_params['y_adjust']
         z_adjust = (new_params['z_adjust'] - z_offset
                     - x_adjust * offsets[0] - y_adjust * offsets[1])
-
         adjustments = [x*x_adjust + y*y_adjust + z_adjust
                        for x, y in self.z_positions]
         self.z_helper.adjust_steppers(adjustments, speed)
-
         return self.retry_helper.check_retry([p[2] for p in positions])
 
 def load_config(config):
