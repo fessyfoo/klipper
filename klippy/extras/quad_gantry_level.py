@@ -9,10 +9,8 @@ import probe, z_tilt
 class QuadGantryLevel:
     def __init__(self, config):
         self.printer = config.get_printer()
-
         self.retry_helper = z_tilt.RetryHelper(config,
             "Possibly Z motor numbering is wrong")
-
         self.max_adjust = config.getfloat("max_adjust", 4, above=0)
         self.horizontal_move_z = config.getfloat("horizontal_move_z", 5.0)
         self.probe_helper = probe.ProbePointsHelper(config, self.probe_finalize)
@@ -42,7 +40,6 @@ class QuadGantryLevel:
     def cmd_QUAD_GANTRY_LEVEL(self, params):
         self.retry_helper.start(params)
         self.probe_helper.start_probe(params)
-
     def probe_finalize(self, offsets, positions):
         # Mirror our perspective so the adjustments make sense
         # from the perspective of the gantry
@@ -95,9 +92,7 @@ class QuadGantryLevel:
 
         speed = self.probe_helper.get_lift_speed()
         self.z_helper.adjust_steppers(z_adjust, speed)
-
         return self.retry_helper.check_retry(z_positions)
-
     def linefit(self,p1,p2):
         if p1[1] == p2[1]:
             # Straight line
